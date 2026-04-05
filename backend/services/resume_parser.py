@@ -62,6 +62,7 @@ def parse_resume_docx(docx_path: str) -> Dict[str, Any]:
     return {
         "lines": lines,
         "sections": sections,
+        "numbered_view": build_numbered_resume_view(sections),
     }
 
 
@@ -76,6 +77,9 @@ def extract_resume_sections(lines: List[str]) -> Dict[str, List[str]]:
     idx_tech = None
     idx_exp = None
     idx_edu = None
+    prof_kw = False
+    tech_kw = False
+    exp_kw = False
 
     for i, t in enumerate(lines):
         tl = t.strip().lower()
@@ -84,11 +88,13 @@ def extract_resume_sections(lines: List[str]) -> Dict[str, List[str]]:
             "professional summary", "summary", "profile", "professional profile"
         ):
             idx_prof = i
+            prof_kw = True
             continue
         if idx_tech is None and (
             "technical skill" in tl2 or tl2 in ("skills", "technical skills")
         ):
             idx_tech = i
+            tech_kw = True
             continue
         if idx_edu is None and tl2 == "education":
             idx_edu = i
@@ -96,6 +102,7 @@ def extract_resume_sections(lines: List[str]) -> Dict[str, List[str]]:
         if idx_exp is None:
             if tl2 in ("experience", "professional experience", "work experience"):
                 idx_exp = i
+                exp_kw = True
                 continue
             if re.search(
                 r"\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)\b"
@@ -121,11 +128,20 @@ def extract_resume_sections(lines: List[str]) -> Dict[str, List[str]]:
     if idx_edu is not None and idx_edu > idx_tech:
         skills_end = min(skills_end, idx_edu)
 
+    prof_start = idx_prof + (1 if prof_kw else 0)
+    tech_start = idx_tech + (1 if tech_kw else 0)
+    exp_start = idx_exp + (1 if exp_kw else 0)
+
+    _structural = {"roles and responsibilities", "roles and responsibilities:"}
+
+    def _drop_structural(block: List[str]) -> List[str]:
+        return [t for t in block if t.strip().lower() not in _structural]
+
     return {
-        "header": _trim_blanks(lines[:idx_prof]),
-        "summary": _trim_blanks(lines[idx_prof:idx_tech]),
-        "skills": _trim_blanks(lines[idx_tech:skills_end]),
-        "experience": _trim_blanks(lines[idx_exp:]),
+        "header": _drop_structural(_trim_blanks(lines[:idx_prof])),
+        "summary": _drop_structural(_trim_blanks(lines[prof_start:idx_tech])),
+        "skills": _drop_structural(_trim_blanks(lines[tech_start:skills_end])),
+        "experience": _drop_structural(_trim_blanks(lines[exp_start:])),
     }
 
 
@@ -133,6 +149,21 @@ def build_numbered_resume_view(sections: Dict[str, List[str]]) -> Dict[str, Any]
     """
     Build numbered prompt-ready resume view and line index mapping.
     """
-    # TODO:
-    # replace with adapted logic from rf_docx_extract.py
-    raise NotImplementedError("build_numbered_resume_view not implemented yet")
+    order = [("header", "H"), ("summary", "S"), ("skills", "K"), ("experience", "E")]
+    text_lines: List[str] = []
+    line_index: Dict[str, str] = {}
+
+    for key, prefix in order:
+        n = 0
+        for line in sections.get(key, []):
+            if not line.strip():
+                continue
+            n += 1
+            ref = f"{prefix}{n:03d}"
+            line_index[ref] = line
+            text_lines.append(f"{ref} | {line}")
+
+    return {
+        "text": "\n".join(text_lines),
+        "line_index": line_index,
+    }

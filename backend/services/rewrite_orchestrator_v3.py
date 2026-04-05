@@ -14,9 +14,9 @@ def _lines(v: Any) -> List[str]:
     return []
 
 
-def render_rewrite_packet(payload: Dict[str, Any]) -> str:
+def render_rewrite_packet_md(payload: Dict[str, Any]) -> str:
     """
-    Deterministic human-readable view of a rewrite packet.
+    Deterministic human view of rewrite_packet.
     No AI. No heuristics. Pure formatting.
     """
     selected_template = payload.get("selected_template", "")
