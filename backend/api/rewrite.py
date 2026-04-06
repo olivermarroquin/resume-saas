@@ -71,8 +71,7 @@ def handle(body: Any) -> Tuple[dict, int]:
     # 2. Reject additional fields.
     extra = set(body.keys()) - _ALLOWED_FIELDS
     if extra:
-        extra_list = ", ".join(sorted(extra))
-        return _error("invalid_json", f"Unexpected fields: {extra_list}.", 400)
+        return _error("invalid_json", "Request body must be valid JSON.", 400)
 
     # 3. Validate resume_text.
     resume_text = body.get("resume_text")
