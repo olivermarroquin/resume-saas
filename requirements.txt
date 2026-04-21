@@ -1,0 +1,15 @@
+# resume-saas backend dependencies
+# Python 3.12+ required
+# Single-file manifest for MVP; may split dev/prod post-MVP
+
+# Web framework
+Flask>=3.1,<4.0
+
+# AI / LLM
+openai>=2.0,<3.0
+
+# Document parsing
+python-docx>=1.0,<2.0
+
+# Testing
+pytest>=9.0,<10.0
