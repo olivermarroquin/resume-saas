@@ -18,9 +18,9 @@ def create_app() -> Flask:
     logger.setLevel(getattr(logging, get_log_level()))
 
     app = Flask(__name__)
-    app.register_blueprint(rewrite_bp)
-    app.register_blueprint(resume_bp)
-    app.register_blueprint(jobs_bp)
+    app.register_blueprint(rewrite_bp, url_prefix="/api")
+    app.register_blueprint(resume_bp, url_prefix="/api")
+    app.register_blueprint(jobs_bp, url_prefix="/api")
 
     @app.after_request
     def log_request(response):
