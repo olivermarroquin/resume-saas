@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sys
 import os
 from typing import Any, Tuple
@@ -15,6 +16,7 @@ if _REPO_ROOT not in sys.path:
 from backend.schemas.proposal_schema import validate_proposals
 import backend.services.rewrite_orchestrator_v5 as _orchestrator
 
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Allowed request fields (spec: additional fields are rejected)
@@ -88,6 +90,7 @@ def handle(body: Any) -> Tuple[dict, int]:
     try:
         raw_output = _orchestrator.run_rewrite(resume_text, job_description)
     except Exception:
+        logger.exception("rewrite service call failed")
         return _error("service_error", "Rewrite service failed.", 500)
 
     # 6. Validate orchestrator output against proposal schema.

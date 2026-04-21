@@ -3,6 +3,7 @@ import sys
 
 from flask import Flask, request
 
+from backend.config import get_log_level
 from backend.api.rewrite_routes import rewrite_bp
 from backend.api.resume_routes import resume_bp
 from backend.api.jobs_routes import jobs_bp
@@ -14,7 +15,7 @@ def create_app() -> Flask:
         handler = logging.StreamHandler(sys.stdout)
         handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
         logger.addHandler(handler)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(getattr(logging, get_log_level()))
 
     app = Flask(__name__)
     app.register_blueprint(rewrite_bp)

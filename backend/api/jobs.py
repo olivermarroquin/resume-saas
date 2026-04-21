@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sys
 import os
 from typing import Any, Tuple
@@ -13,6 +14,8 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 import backend.services.jd_parser as _jd_parser
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Allowed request fields
@@ -68,6 +71,7 @@ def handle(body: Any) -> Tuple[dict, int]:
     try:
         terms = _jd_parser.extract_jd_terms(job_description)
     except Exception:
+        logger.exception("job description parse service call failed")
         return _error("service_error", "Job description parse service failed.", 500)
 
     return {"terms": terms}, 200

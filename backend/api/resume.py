@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sys
 import os
 from typing import Any, Tuple
@@ -13,6 +14,8 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 import backend.services.resume_parser as _resume_parser
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Allowed request fields
@@ -70,6 +73,7 @@ def handle(body: Any) -> Tuple[dict, int]:
     try:
         raw = _resume_parser.extract_resume_sections(resume_text.splitlines())
     except Exception:
+        logger.exception("resume parse service call failed")
         return _error("service_error", "Resume parse service failed.", 500)
 
     # 5. Normalize — guarantee all four section keys as arrays.
