@@ -40,6 +40,35 @@ after MVP ships.
 
 ---
 
+## 2026-04-21 — Workspace CLAUDE.md versioning: deferred
+
+### What happened
+- Encountered: workspace/CLAUDE.md is edited and on disk but has no
+  git repo to commit into. Workspace root is not initialized as a repo.
+- Evaluated four options: init workspace as superproject repo, symlink
+  into ai-factory, move into ai-factory, defer.
+- Decision: defer. File remains at workspace/CLAUDE.md, uncommitted,
+  local-only.
+
+### Decisions made
+- No versioning for workspace/CLAUDE.md at this time.
+- Revisit this decision when: (a) working on a second machine, (b)
+  collaborating with another person, (c) workspace grows more
+  cross-cutting files that need tracking.
+
+### Known risk accepted
+- workspace/CLAUDE.md content is not recoverable from git if local
+  disk is lost. Content pattern is documented in this chat history and
+  in the strategic chat. Manual reconstruction is possible but tedious.
+
+### Artifacts touched
+- None (decision only, no file changes in this entry)
+
+### Next session should start with
+- Stage 2 of frontend scaffold: AppContext + types.
+
+---
+
 ## 2026-04-21 — Stage 1: Next.js scaffold + Tailwind (Claude Code in VS Code)
 
 ### What happened
