@@ -40,6 +40,75 @@ after MVP ships.
 
 ---
 
+## 2026-04-21 — Stage 3.5: Fix OpenAI strict Structured Outputs schema (Claude Code in VS Code)
+
+### What happened
+- Inspected backend/schemas/proposal_schema.py to diagnose the 500 
+  error surfaced in Stage 3's live end-to-end test.
+- Root cause: the schema returned by json_schema_for_structured_outputs() 
+  uses strict=true, but the top-level `narrative` property was declared 
+  in `properties` without being listed in `required`. OpenAI's strict 
+  Structured Outputs mode requires every property in `properties` to 
+  also appear in `required`.
+- Fix applied (two lines in json_schema_for_structured_outputs()):
+  - Added "narrative" to the top-level required array.
+  - Changed narrative's type from "string" to ["string", "null"] so 
+    the model can legitimately return null when there's nothing to 
+    narrate.
+- No changes to validate_proposals() — it already accepts narrative=None.
+- No test changes — all 40 backend tests still pass (they mock the 
+  orchestrator, so the schema change is invisible to them).
+- Verified the nested Proposal items.properties was already correct 
+  (all 5 properties listed in required, additionalProperties: false).
+
+### Live end-to-end test (second attempt, post-fix)
+- Flask backend restarted on port 8080. Next.js frontend on port 3001.
+- Pasted real resume + real job description, clicked Generate.
+- Flask logged: POST /api/rewrite → 200
+- Frontend transitioned from Processing to Round Trip Successful 
+  placeholder.
+- Result: 7 proposals returned, narrative=null (rendered as "No 
+  narrative returned.")
+- The entire stack — browser → Next.js proxy → Flask → orchestrator 
+  → OpenAI API → schema validation → proposal ID assignment → JSON 
+  response → frontend state update → UI render — is end-to-end 
+  verified.
+
+### Decisions made
+- Kept narrative in the schema rather than removing it. It's an 
+  intentional product feature (high-level summary for the user); 
+  nullable-required is the right fit for strict-mode-with-optional-
+  content.
+- Did not attempt to upstream a test for the OpenAI round trip. All 
+  tests continue to mock the orchestrator. A real-API integration 
+  test would add flakiness, cost per test run, and an API-key 
+  dependency — bad trade for MVP. Revisit post-launch.
+
+### Known debt (still open, unchanged from prior entries)
+- rewrite.py collapses all orchestrator exceptions to 500 service_error. 
+  An OpenAI config bug (like the one we just fixed) surfaces to users 
+  as a generic "Rewrite service failed" rather than anything that 
+  helps a developer. Post-MVP polish candidate.
+- Orchestrator still unverified against other OpenAI 2.x schema 
+  quirks. Today's fix solves the immediate failure; future schema 
+  edits (e.g., if we add fields in v1.1) should go through a live 
+  sanity check before shipping.
+
+### Artifacts produced
+- backend/schemas/proposal_schema.py (2 lines changed in 
+  json_schema_for_structured_outputs)
+
+### Next session should start with
+Stage 4: implement the real review screen. Three panes (OriginalPane, 
+ProposedPane with diff highlighting, ProposalsList), diff visualization 
+using the four proposal ops, freeform editing, versioning UI, 
+client-side PDF/DOCX export via jspdf and docx libraries.
+
+The MVP is now functionally plumbed end-to-end. Stage 4 turns the 
+"Got N proposals" placeholder into the real review/export UX.
+
+---
+
 ## 2026-04-21 — Stage 3: Input screen + end-to-end plumbing (Claude Code in VS Code)
 
 ### What happened

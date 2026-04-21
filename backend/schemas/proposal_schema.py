@@ -102,9 +102,9 @@ def json_schema_for_structured_outputs() -> Dict[str, Any]:
         "schema": {
             "type": "object",
             "additionalProperties": False,
-            "required": ["proposals"],
+            "required": ["proposals", "narrative"],
             "properties": {
-                "narrative": {"type": "string"},
+                "narrative": {"type": ["string", "null"]},
                 "proposals": {
                     "type": "array",
                     "items": {
