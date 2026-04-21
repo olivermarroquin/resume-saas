@@ -37,3 +37,26 @@ Extract the engine.
 Wrap it in services.
 Expose it through APIs.
 Build the UI on top.
+
+## Running the dev servers
+
+Two processes in two terminals.
+
+Backend (Flask, port 8080):
+
+    cd repos/resume-saas
+    .venv/bin/flask --app app run --port 8080
+
+Frontend (Next.js, port 3001 or 3000):
+
+    cd repos/resume-saas/frontend
+    npm run dev
+
+The frontend proxies `/api/*` requests to `http://localhost:8080/api/*`
+via a Next.js rewrite rule in `next.config.ts`, so the browser only
+talks to the Next.js origin. No CORS configuration needed in dev.
+
+## Running the backend tests
+
+    cd repos/resume-saas
+    .venv/bin/python -m pytest tests/backend -v

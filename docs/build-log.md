@@ -40,6 +40,114 @@ after MVP ships.
 
 ---
 
+## 2026-04-21 — Stage 3: Input screen + end-to-end plumbing (Claude Code in VS Code)
+
+### What happened
+- Added Next.js rewrite rule in next.config.ts proxying /api/:path*
+  to http://localhost:8080/api/:path*, eliminating CORS concerns for
+  local dev.
+- Created lib/api.ts with callRewrite() — a discriminated-union fetch
+  wrapper that maps network failures, HTTP errors, and unexpected
+  response shapes to typed error results instead of throwing.
+- Created four new components:
+  - components/ErrorBanner.tsx — reusable error display with
+    dismissible action.
+  - components/InputScreen.tsx — two textareas, disabled Generate
+    button until both fields non-empty after trim.
+  - components/ProcessingScreen.tsx — centered spinner, 60-second
+    "Still working…" fallback.
+  - components/AppShell.tsx — phase-driven switch; stage-3 placeholder
+    for the review phase (Stage 4 replaces it with the real
+    ReviewScreen).
+- Wired AppProvider into app/layout.tsx at the root (layout stays a
+  Server Component; provider creates a client boundary below it).
+- Replaced app/page.tsx default create-next-app content with
+  <AppShell />.
+- Added "Running the dev servers" and "Running the backend tests"
+  sections to repos/resume-saas/README.md documenting the canonical
+  commands.
+- Verified tsc --noEmit clean, npm run dev starts clean.
+
+### End-to-end test (first live backend round trip)
+- Ran Flask backend at http://localhost:8080 via:
+    .venv/bin/flask --app app run --port 8080
+- Ran Next.js frontend at http://localhost:3001 via:
+    npm run dev
+- Check 1 (empty form): Generate disabled. Pass.
+- Check 2 (button toggles with both fields filled): Pass.
+- Check 3 (real submit with resume + JD content):
+    - Frontend transitioned to Processing screen.
+    - Network call reached backend via proxy (Flask logged
+      "POST /api/rewrite → 500").
+    - Frontend rendered ErrorBanner with code=service_error,
+      message="Rewrite service failed."
+    - The frontend handled the backend error correctly, exactly as
+      specified.
+
+### What the error actually was
+Flask terminal traceback revealed an openai.BadRequestError 400 from
+the OpenAI Structured Outputs API:
+
+    "Invalid schema for response_format 'resume_edit_proposals': In
+    context=(), 'required' is required to be supplied and to be an
+    array including every key in properties. Missing 'narrative'."
+
+OpenAI's Structured Outputs feature, when strict=true, requires that
+every property declared in `properties` also appear in `required`.
+`narrative` is declared in properties but omitted from required in
+backend/schemas/proposal_schema.py.
+
+This is NOT a Stage 3 bug. It's a backend schema bug surfaced by the
+first live end-to-end test. Stage 3 is complete — the frontend
+correctly routed a backend error to the user. The schema fix is
+Stage 3.5, tracked separately.
+
+Related backend behavior worth noting: rewrite.py catches any
+orchestrator exception as `service_error` / 500. An OpenAI 400
+config bug is therefore surfaced to the user as a generic 500.
+Semantically slightly wrong but acceptable for MVP; post-MVP polish
+could pass through the real status code for configuration errors.
+
+### Decisions made
+- Proxy rewrite pattern (option B from the Stage 3 planning) over
+  absolute-URL + CORS (option A) or Next.js API routes (option C).
+  Rationale: no CORS complexity in dev, no env var required in
+  lib/api.ts, single-string swap for production.
+- Backend dev port 8080 over 5000 (AirPlay on macOS conflicts) and
+  over 3000/3001 (Next.js territory). Chosen as standard Flask/backend
+  alt-port.
+- Stage 3 scope capped at Input + Processing + placeholder review.
+  The real review screen is Stage 4. Not mixing the two keeps
+  approvals and commits reviewable.
+- Stage 3 considered complete despite the discovered backend schema
+  bug. Conflating frontend completion with backend correctness would
+  make progress impossible to measure.
+
+### Known debt surfaced (filed, being addressed next in Stage 3.5)
+- backend/schemas/proposal_schema.py has `narrative` in properties but
+  not in required — violates OpenAI 2.x strict Structured Outputs
+  contract. Fix in Stage 3.5.
+- rewrite.py returns 500 for any orchestrator exception, including
+  OpenAI 400 config bugs. Post-MVP polish candidate.
+
+### Artifacts produced
+- repos/resume-saas/frontend/next.config.ts (modified)
+- repos/resume-saas/frontend/lib/api.ts (new)
+- repos/resume-saas/frontend/components/ErrorBanner.tsx (new)
+- repos/resume-saas/frontend/components/InputScreen.tsx (new)
+- repos/resume-saas/frontend/components/ProcessingScreen.tsx (new)
+- repos/resume-saas/frontend/components/AppShell.tsx (new)
+- repos/resume-saas/frontend/app/layout.tsx (modified)
+- repos/resume-saas/frontend/app/page.tsx (modified)
+- repos/resume-saas/README.md (sections added)
+
+### Next session should start with
+Stage 3.5: fix proposal_schema.py so narrative is in required and
+the schema passes OpenAI's strict Structured Outputs validation.
+Re-run end-to-end test. Verify real proposals come back.
+
+---
+
 ## 2026-04-21 — Stage 2.5: Backend dependency manifest + /api prefix (Claude Code in VS Code)
 
 ### What happened
