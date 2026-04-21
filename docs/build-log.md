@@ -40,6 +40,70 @@ after MVP ships.
 
 ---
 
+## 2026-04-21 — Stage 2: AppContext + types (Claude Code in VS Code)
+
+### What happened
+- Created the state management layer for the frontend: five files under
+  repos/resume-saas/frontend/lib/.
+  - lib/types.ts — shared TypeScript types (Phase, Proposal,
+    ProposalSection, ProposalOp, Version, AppError, AppState).
+  - lib/context/actions.ts — discriminated-union Action type (13
+    actions including CLEAR_ERROR beyond the spec's named set).
+  - lib/applyProposals.ts — pure deterministic function implementing
+    the spec's "Proposal application algorithm" with
+    findSectionInsertIndex helper for ADD_LINE.
+  - lib/context/reducer.ts — pure reducer with initialState; every
+    action that touches acceptedProposalIds produces a new Set.
+  - lib/context/AppContext.tsx — "use client" provider wrapping
+    useReducer, plus useAppState hook with null-guard throw.
+- `npx tsc --noEmit` passed with zero errors.
+- `npm run dev` started cleanly; default landing page still renders
+  (context is not yet wired into layout.tsx — that's Stage 3).
+
+### Decisions made
+- `error` field typed as `AppError { code: string; message: string }`
+  rather than bare `string`. Rationale: matches the API's `{ error,
+  message }` error body shape, so 500 responses can render code and
+  message separately later. Minor deviation from spec text ("error:
+  string | null") that improves fidelity to the actual backend contract.
+- Added `CLEAR_ERROR` action beyond the spec's named list, so that
+  "user dismisses error banner" can be dispatched without re-typing
+  other input fields to trigger the implicit error-clearing in
+  `SET_RESUME_TEXT` / `SET_JOB_DESCRIPTION`.
+- Kept the spec's order-sensitivity for `applyProposals`: accepted
+  proposals are filtered from the original proposals array (preserving
+  API order), not iterated from the Set.
+- Used `React.Context.Provider` form rather than React 19's new bare
+  `<Context value={...}>` form. More universally recognized pattern.
+
+### Known limitations (filed, not fixed)
+- `findSectionInsertIndex` inserts just before the next section header.
+  If the current section has trailing blank lines, new lines from
+  ADD_LINE get inserted after the blanks rather than at the semantic
+  "end" of the section. Spec explicitly scopes this as "best-effort
+  heuristic." Acceptable for MVP; revisit in v1.1.
+
+### Artifacts produced
+- repos/resume-saas/frontend/lib/types.ts (new)
+- repos/resume-saas/frontend/lib/context/actions.ts (new)
+- repos/resume-saas/frontend/lib/applyProposals.ts (new)
+- repos/resume-saas/frontend/lib/context/reducer.ts (new)
+- repos/resume-saas/frontend/lib/context/AppContext.tsx (new)
+
+### Next session should start with
+Stage 3: wire AppProvider into app/layout.tsx, create InputScreen
+component, create lib/api.ts (centralized fetch wrapper for
+POST /api/rewrite), and verify a submit from the UI reaches the
+backend (backend /api prefix work still pending — may need to happen
+either as part of Stage 3 or right before it).
+
+### Open questions for next session
+- Should the backend /api prefix change happen before Stage 3's API
+  wiring, or after Stage 3 scaffolding with /rewrite as the interim
+  target? Leaning before, so frontend codes against the final URL.
+
+---
+
 ## 2026-04-21 — Workspace CLAUDE.md versioning: deferred
 
 ### What happened
