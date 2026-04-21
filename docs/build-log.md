@@ -40,6 +40,74 @@ after MVP ships.
 
 ---
 
+## 2026-04-21 — Stage 2.5: Backend dependency manifest + /api prefix (Claude Code in VS Code)
+
+### What happened
+- Discovered repos/resume-saas/ had no Python dependency manifest of
+  any kind (no requirements.txt, pyproject.toml, Pipfile, or setup.py)
+  and that the existing .venv was pre-existing with unknown state.
+- Ran a clean inventory of backend imports: Flask, openai, python-docx,
+  and pytest (tests-only) as the actual third-party dependencies.
+  Confirmed pydantic is not imported anywhere despite being installed
+  in environments elsewhere.
+- Deleted the existing repos/resume-saas/.venv to eliminate unknown
+  state.
+- Created fresh .venv with Python 3.12.12. Wrote requirements.txt
+  with compatible-release pins.
+- Verified manifest completeness via delete-and-recreate cycle:
+  installed from manifest, ran 40/40 tests passing, deleted .venv,
+  recreated from scratch, installed from manifest again, 40/40 still
+  passing. The manifest is sufficient.
+- Updated .gitignore with additional Python and IDE artifact patterns.
+- Changed repos/resume-saas/app.py to register all three blueprints
+  (rewrite_bp, resume_bp, jobs_bp) with url_prefix="/api". Endpoints
+  now live at /api/rewrite, /api/resume/parse, /api/jobs/*. Tests call
+  handle() directly (no HTTP client), so the prefix change has zero
+  test impact — confirmed 40/40 tests still passing.
+
+### Decisions made
+- Omit pydantic from requirements.txt until a real import exists
+  (verified via grep: zero matches in backend/ and app.py). Add later
+  if schema validation gets refactored onto pydantic.
+- Omit flask-cors and python-dotenv from MVP manifest. Add when CORS
+  wiring and local-env loading become real needs (anticipated during
+  Stage 4 integration or deployment).
+- Single requirements.txt for MVP (no dev/prod split). Revisit if
+  production image size becomes a concern post-deploy.
+- Compatible-release pins (>=major.minor,<major+1.0) chosen over exact
+  pins. Allows patch/minor upgrades, blocks majors. Reasonable default
+  for a small backend.
+- openai 2.30.0 installed; v1-style client pattern
+  (OpenAI(); client.chat.completions.create()) still works on 2.x per
+  upstream changelog. Kept rewrite_orchestrator_v5.py unchanged.
+
+### Known debt (filed, not fixed)
+- rewrite_orchestrator_v5.py has NOT been verified end-to-end against
+  openai 2.x in a real API call. Tests mock the orchestrator. First
+  real proof will come during Stage 3 or Stage 4 integration. If the
+  model call errors out due to an unexpected 2.x behavior, fix in
+  isolation then.
+- repos/resume-saas/app.py is still at repo root (not moved under
+  backend/). Structural cleanup deferred; already logged in
+  01_current-strategy.md open decisions.
+
+### Artifacts produced
+- repos/resume-saas/requirements.txt (new)
+- repos/resume-saas/.gitignore (modified)
+- repos/resume-saas/app.py (modified)
+- repos/resume-saas/.venv/ (recreated clean; not committed, gitignored)
+
+### Test baseline
+- 40/40 backend tests passing in a freshly built venv. Baseline
+  established for subsequent work.
+
+### Next session should start with
+Stage 3 of frontend scaffold: wire AppProvider into app/layout.tsx,
+create InputScreen component, create lib/api.ts hitting
+POST /api/rewrite, verify a submit reaches the backend.
+
+---
+
 ## 2026-04-21 — Stage 2: AppContext + types (Claude Code in VS Code)
 
 ### What happened
