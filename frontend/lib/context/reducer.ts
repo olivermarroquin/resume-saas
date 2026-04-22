@@ -1,4 +1,4 @@
-import type { AppState, Proposal } from "../types";
+import type { AppState, Proposal, UndoEntry, Version } from "../types";
 import type { Action } from "./actions";
 import { applyProposals } from "../applyProposals";
 
@@ -10,7 +10,7 @@ export const initialState: AppState = {
   narrative: null,
   acceptedProposalIds: new Set<number>(),
   currentText: "",
-  undoStash: null,
+  undoStack: [],
   versions: [],
   error: null,
 };
@@ -28,7 +28,7 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case "GENERATE_SUCCESS": {
       const { proposals, narrative } = action.payload;
-      const v1: AppState["versions"][number] = {
+      const v1: Version = {
         label: "v1",
         text: state.resumeText,
         createdAt: Date.now(),
@@ -40,7 +40,7 @@ export function reducer(state: AppState, action: Action): AppState {
         narrative,
         acceptedProposalIds: new Set<number>(),
         currentText: state.resumeText,
-        undoStash: null,
+        undoStack: [],
         versions: [v1],
         error: null,
       };
@@ -51,6 +51,10 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case "TOGGLE_PROPOSAL": {
       const { proposalId } = action.payload;
+      const snapshot: UndoEntry = {
+        text: state.currentText,
+        acceptedProposalIds: new Set(state.acceptedProposalIds),
+      };
       const nextAccepted = new Set(state.acceptedProposalIds);
       if (nextAccepted.has(proposalId)) {
         nextAccepted.delete(proposalId);
@@ -62,31 +66,57 @@ export function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         acceptedProposalIds: nextAccepted,
-        undoStash: state.currentText, // stash current before regenerating
+        undoStack: [...state.undoStack, snapshot],
+        currentText: nextText,
+      };
+    }
+
+    case "TOGGLE_ALL": {
+      const allIds = state.proposals.map((p) => p.id);
+      const allAccepted = allIds.every((id) => state.acceptedProposalIds.has(id));
+      const snapshot: UndoEntry = {
+        text: state.currentText,
+        acceptedProposalIds: new Set(state.acceptedProposalIds),
+      };
+      const nextAccepted = allAccepted
+        ? new Set<number>()
+        : new Set<number>(allIds);
+      const accepted = orderedAccepted(state.proposals, nextAccepted);
+      const nextText = applyProposals(state.resumeText, accepted);
+      return {
+        ...state,
+        acceptedProposalIds: nextAccepted,
+        undoStack: [...state.undoStack, snapshot],
         currentText: nextText,
       };
     }
 
     case "EDIT_CURRENT_TEXT":
-      // Freeform edit. Does not clear undoStash (spec).
       return { ...state, currentText: action.payload };
 
     case "UNDO": {
-      if (state.undoStash == null) return state;
+      if (state.undoStack.length === 0) return state;
+      const next = [...state.undoStack];
+      const entry = next.pop()!;
       return {
         ...state,
-        currentText: state.undoStash,
-        undoStash: null,
+        currentText: entry.text,
+        acceptedProposalIds: entry.acceptedProposalIds,
+        undoStack: next,
       };
     }
 
     case "RESTORE_ORIGINAL":
-      // Does NOT touch acceptedProposalIds (spec).
-      return { ...state, currentText: state.resumeText };
+      return {
+        ...state,
+        currentText: state.resumeText,
+        acceptedProposalIds: new Set<number>(),
+        undoStack: [],
+      };
 
     case "SAVE_VERSION": {
       const nextLabel = `v${state.versions.length + 1}`;
-      const snapshot: AppState["versions"][number] = {
+      const snapshot: Version = {
         label: nextLabel,
         text: state.currentText,
         createdAt: Date.now(),
@@ -106,25 +136,18 @@ export function reducer(state: AppState, action: Action): AppState {
       return { ...state, error: null };
 
     case "START_OVER":
-      // Reset to initial state (clears everything including last inputs).
       return {
         ...initialState,
         acceptedProposalIds: new Set<number>(),
       };
 
     default: {
-      // Exhaustiveness check
-      const _exhaustive: never = action;
+      void (action as never);
       return state;
     }
   }
 }
 
-/**
- * Filter proposals down to the currently accepted set, preserving
- * API-returned order. This is important because applyProposals is
- * order-sensitive (later proposals may depend on earlier ones).
- */
 function orderedAccepted(
   proposals: Proposal[],
   acceptedIds: Set<number>,

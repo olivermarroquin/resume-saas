@@ -1,4 +1,4 @@
-import type { Proposal, Version, AppError } from "../types";
+import type { Proposal, AppError } from "../types";
 
 export type Action =
   | { type: "SET_RESUME_TEXT"; payload: string }
@@ -10,6 +10,7 @@ export type Action =
     }
   | { type: "GENERATE_FAILURE"; payload: AppError }
   | { type: "TOGGLE_PROPOSAL"; payload: { proposalId: number } }
+  | { type: "TOGGLE_ALL" }
   | { type: "EDIT_CURRENT_TEXT"; payload: string }
   | { type: "UNDO" }
   | { type: "RESTORE_ORIGINAL" }

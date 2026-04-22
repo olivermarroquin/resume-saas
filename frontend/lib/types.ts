@@ -26,6 +26,11 @@ export type Version = {
   createdAt: number; // Date.now()
 };
 
+export type UndoEntry = {
+  text: string;
+  acceptedProposalIds: Set<number>;
+};
+
 export type AppError = {
   code: string;
   message: string;
@@ -45,7 +50,7 @@ export type AppState = {
   // Review state
   acceptedProposalIds: Set<number>;
   currentText: string;
-  undoStash: string | null;
+  undoStack: UndoEntry[];
   versions: Version[];
 
   // UI
