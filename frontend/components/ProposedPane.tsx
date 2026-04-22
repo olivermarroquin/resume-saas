@@ -15,8 +15,18 @@ const HIGHLIGHT_CLASS: Record<DiffLine["highlight"], string> = {
 
 /**
  * Compute the cursor's character offset from the start of the
- * given container's text content. Returns 0 if no selection, or
- * if the selection is outside the container.
+ * logical text in the given container.
+ *
+ * The container holds one <div> per logical line. The logical text
+ * is those divs' textContent joined by "\n" (matching how
+ * readTextFromContainer produces state.currentText).
+ *
+ * This function walks LINE DIVS, not text nodes. That handles the
+ * empty-line case correctly: a <div><br></div> has no text node
+ * inside it, but it still represents a line position in the
+ * logical text. Text-node walkers would skip right past it.
+ *
+ * Returns 0 if no selection or cursor is outside the container.
  */
 function getCursorCharOffset(container: HTMLElement): number {
   const sel = window.getSelection();
@@ -24,64 +34,172 @@ function getCursorCharOffset(container: HTMLElement): number {
   const range = sel.getRangeAt(0);
   if (!container.contains(range.endContainer)) return 0;
 
-  const walker = document.createTreeWalker(
-    container,
-    NodeFilter.SHOW_TEXT,
-    null,
-  );
+  const lineChildren = Array.from(container.children) as HTMLElement[];
   let offset = 0;
-  let node: Node | null = walker.nextNode();
-  while (node != null) {
-    if (node === range.endContainer) {
-      return offset + range.endOffset;
+
+  for (let i = 0; i < lineChildren.length; i++) {
+    const line = lineChildren[i];
+    // Skip ghost rows (contentEditable=false) — they represent
+    // deleted content and are not part of the logical text.
+    if (line.getAttribute("contenteditable") === "false") continue;
+
+    const lineText = line.textContent ?? "";
+
+    // Is the cursor inside this line div (or its descendants)?
+    if (line === range.endContainer || line.contains(range.endContainer)) {
+      // Cursor is somewhere in this line. Compute offset within
+      // this line's text.
+      let withinLine = 0;
+      if (range.endContainer === line) {
+        // Cursor is directly in the line element, not in a text
+        // child. This happens for empty lines (<div><br></div>).
+        // Treat cursor position as 0 within this line.
+        withinLine = 0;
+      } else {
+        // Cursor is in a descendant text node. Walk text nodes
+        // inside this line, summing lengths until we hit the
+        // cursor's text node.
+        const walker = document.createTreeWalker(
+          line,
+          NodeFilter.SHOW_TEXT,
+          null,
+        );
+        let node: Node | null = walker.nextNode();
+        while (node != null) {
+          if (node === range.endContainer) {
+            withinLine += range.endOffset;
+            break;
+          }
+          withinLine += (node.textContent ?? "").length;
+          node = walker.nextNode();
+        }
+      }
+      return offset + withinLine;
     }
-    offset += (node.textContent ?? "").length;
-    node = walker.nextNode();
+
+    // Cursor is not in this line. Add this line's length + 1
+    // (for the "\n" separator) and continue.
+    offset += lineText.length;
+    // Only add separator if there's a next line (matches join("\n")
+    // behavior).
+    if (i < lineChildren.length - 1) {
+      offset += 1;
+    }
   }
+
   return offset;
 }
 
 /**
- * Place the cursor at the given character offset from the start of
- * the container's text content.
+ * Place the cursor at the given character offset in the logical
+ * text of the container.
+ *
+ * Walks LINE DIVS matching the getCursorCharOffset model. For an
+ * empty line (<div><br></div>), places the cursor directly in the
+ * line element (offset 0 within it) since there's no text node
+ * to position within.
  */
 function setCursorCharOffset(container: HTMLElement, offset: number): void {
   if (offset < 0) offset = 0;
-  const walker = document.createTreeWalker(
-    container,
-    NodeFilter.SHOW_TEXT,
-    null,
+
+  const lineChildren = Array.from(container.children) as HTMLElement[];
+  const editableLines = lineChildren.filter(
+    (el) => el.getAttribute("contenteditable") !== "false",
   );
+
+  if (editableLines.length === 0) return;
+
   let remaining = offset;
-  let node: Node | null = walker.nextNode();
-  let lastTextNode: Node | null = null;
-  let lastTextLength = 0;
-  while (node != null) {
-    const len = (node.textContent ?? "").length;
-    if (remaining <= len) {
+
+  for (let i = 0; i < editableLines.length; i++) {
+    const line = editableLines[i];
+    const lineText = line.textContent ?? "";
+    const isLast = i === editableLines.length - 1;
+
+    if (remaining <= lineText.length) {
+      // Cursor belongs in this line.
       const sel = window.getSelection();
       if (!sel) return;
       const range = document.createRange();
-      range.setStart(node, remaining);
+
+      if (lineText.length === 0) {
+        // Empty line. Place cursor directly in the line element.
+        range.setStart(line, 0);
+      } else {
+        // Non-empty line. Walk its text nodes to find position.
+        const walker = document.createTreeWalker(
+          line,
+          NodeFilter.SHOW_TEXT,
+          null,
+        );
+        let textNode: Node | null = walker.nextNode();
+        let posInLine = remaining;
+        let lastTextNode: Node | null = null;
+        let lastLen = 0;
+        while (textNode != null) {
+          const len = (textNode.textContent ?? "").length;
+          if (posInLine <= len) {
+            range.setStart(textNode, posInLine);
+            break;
+          }
+          posInLine -= len;
+          lastTextNode = textNode;
+          lastLen = len;
+          textNode = walker.nextNode();
+        }
+        if (textNode == null && lastTextNode != null) {
+          // Ran past end; place at end of last text node.
+          range.setStart(lastTextNode, lastLen);
+        } else if (textNode == null) {
+          // No text nodes at all in a non-empty line? Shouldn't
+          // happen, but fall back to line element.
+          range.setStart(line, 0);
+        }
+      }
+
       range.collapse(true);
       sel.removeAllRanges();
       sel.addRange(range);
       return;
     }
-    remaining -= len;
-    lastTextNode = node;
-    lastTextLength = len;
-    node = walker.nextNode();
+
+    // Cursor is past this line. Subtract this line's length + 1
+    // (for the "\n" separator) if not last line.
+    remaining -= lineText.length;
+    if (!isLast) remaining -= 1;
   }
-  if (lastTextNode != null) {
-    const sel = window.getSelection();
-    if (!sel) return;
-    const range = document.createRange();
-    range.setStart(lastTextNode, lastTextLength);
-    range.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(range);
+
+  // Ran past all lines. Place cursor at end of last line.
+  const lastLine = editableLines[editableLines.length - 1];
+  const lastText = lastLine.textContent ?? "";
+  const sel = window.getSelection();
+  if (!sel) return;
+  const range = document.createRange();
+  if (lastText.length === 0) {
+    range.setStart(lastLine, 0);
+  } else {
+    const walker = document.createTreeWalker(
+      lastLine,
+      NodeFilter.SHOW_TEXT,
+      null,
+    );
+    let lastTextNode: Node | null = null;
+    let lastLen = 0;
+    let node: Node | null = walker.nextNode();
+    while (node != null) {
+      lastTextNode = node;
+      lastLen = (node.textContent ?? "").length;
+      node = walker.nextNode();
+    }
+    if (lastTextNode != null) {
+      range.setStart(lastTextNode, lastLen);
+    } else {
+      range.setStart(lastLine, 0);
+    }
   }
+  range.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(range);
 }
 
 /**
