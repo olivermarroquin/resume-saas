@@ -131,9 +131,15 @@ export function ProposedPane() {
       prevUndoDepthRef.current !== undoDepth;
 
     if (structuralChange) {
-      const hadFocus = document.activeElement === div;
+      // User toggled / undid / restored. Always reset scroll and
+      // cursor to the start of the pane and return focus to the pane.
+      // The pane is the primary interaction surface for this product,
+      // and the toggle action just changed the pane's content — the
+      // user's next action is almost certainly to read the change or
+      // continue editing, both of which benefit from focus being on
+      // the pane. No hadFocus guard.
       div.scrollTop = 0;
-      if (hadFocus && div.firstChild) {
+      if (div.firstChild) {
         const sel = window.getSelection();
         if (sel) {
           const range = document.createRange();
@@ -142,8 +148,8 @@ export function ProposedPane() {
           sel.removeAllRanges();
           sel.addRange(range);
         }
-        div.focus();
       }
+      div.focus();
     } else {
       if (document.activeElement === div) {
         setCursorCharOffset(div, savedOffsetRef.current);
