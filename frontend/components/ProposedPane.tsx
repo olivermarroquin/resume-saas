@@ -2,18 +2,116 @@
 
 import { useEffect, useRef } from "react";
 import { useAppState } from "../lib/context/AppContext";
-import { computeDiffLines } from "../lib/diffPreview";
+import { computeDiffLines, type DiffLine } from "../lib/diffPreview";
 
-const highlightClass: Record<string, string> = {
+const HIGHLIGHT_CLASS: Record<DiffLine["highlight"], string> = {
   green: "bg-green-100 text-green-900",
   yellow: "bg-yellow-100 text-yellow-900",
   "red-strike": "bg-red-100 text-red-900 line-through",
   none: "",
 };
 
+// ---------- Cursor offset helpers ----------
+
+/**
+ * Compute the cursor's character offset from the start of the
+ * given container's text content. Returns 0 if no selection, or
+ * if the selection is outside the container.
+ */
+function getCursorCharOffset(container: HTMLElement): number {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return 0;
+  const range = sel.getRangeAt(0);
+  if (!container.contains(range.endContainer)) return 0;
+
+  const walker = document.createTreeWalker(
+    container,
+    NodeFilter.SHOW_TEXT,
+    null,
+  );
+  let offset = 0;
+  let node: Node | null = walker.nextNode();
+  while (node != null) {
+    if (node === range.endContainer) {
+      return offset + range.endOffset;
+    }
+    offset += (node.textContent ?? "").length;
+    node = walker.nextNode();
+  }
+  return offset;
+}
+
+/**
+ * Place the cursor at the given character offset from the start of
+ * the container's text content.
+ */
+function setCursorCharOffset(container: HTMLElement, offset: number): void {
+  if (offset < 0) offset = 0;
+  const walker = document.createTreeWalker(
+    container,
+    NodeFilter.SHOW_TEXT,
+    null,
+  );
+  let remaining = offset;
+  let node: Node | null = walker.nextNode();
+  let lastTextNode: Node | null = null;
+  let lastTextLength = 0;
+  while (node != null) {
+    const len = (node.textContent ?? "").length;
+    if (remaining <= len) {
+      const sel = window.getSelection();
+      if (!sel) return;
+      const range = document.createRange();
+      range.setStart(node, remaining);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return;
+    }
+    remaining -= len;
+    lastTextNode = node;
+    lastTextLength = len;
+    node = walker.nextNode();
+  }
+  if (lastTextNode != null) {
+    const sel = window.getSelection();
+    if (!sel) return;
+    const range = document.createRange();
+    range.setStart(lastTextNode, lastTextLength);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+}
+
+/**
+ * Read the total plain text from the container, joining line <div>
+ * children with newlines. Ghost (contentEditable=false) lines are
+ * skipped — they represent deleted content and are not part of the
+ * logical text.
+ */
+function readTextFromContainer(container: HTMLElement): string {
+  const children = Array.from(container.children) as HTMLElement[];
+  return children
+    .filter((el) => el.getAttribute("contenteditable") !== "false")
+    .map((el) => el.textContent ?? "")
+    .join("\n");
+}
+
+// ---------- Component ----------
+
 export function ProposedPane() {
   const { state, dispatch } = useAppState();
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const divRef = useRef<HTMLDivElement>(null);
+
+  const prevAcceptedKeyRef = useRef<string>("");
+  const prevUndoDepthRef = useRef<number>(0);
+  const savedOffsetRef = useRef<number>(0);
+
+  const acceptedIdsKey = Array.from(state.acceptedProposalIds)
+    .sort((a, b) => a - b)
+    .join(",");
+  const undoDepth = state.undoStack.length;
 
   const acceptedProposals = state.proposals.filter((p) =>
     state.acceptedProposalIds.has(p.id),
@@ -24,17 +122,60 @@ export function ProposedPane() {
     acceptedProposals,
   );
 
-  // After any toggle-driven or regeneration-driven currentText change,
-  // reset cursor to start of textarea and preserve focus if already focused.
   useEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    const hadFocus = document.activeElement === el;
-    el.setSelectionRange(0, 0);
-    el.scrollTop = 0;
-    if (hadFocus) el.focus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.currentText, state.acceptedProposalIds]);
+    const div = divRef.current;
+    if (!div) return;
+
+    const structuralChange =
+      prevAcceptedKeyRef.current !== acceptedIdsKey ||
+      prevUndoDepthRef.current !== undoDepth;
+
+    if (structuralChange) {
+      const hadFocus = document.activeElement === div;
+      div.scrollTop = 0;
+      if (hadFocus && div.firstChild) {
+        const sel = window.getSelection();
+        if (sel) {
+          const range = document.createRange();
+          range.setStart(div.firstChild, 0);
+          range.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+        div.focus();
+      }
+    } else {
+      if (document.activeElement === div) {
+        setCursorCharOffset(div, savedOffsetRef.current);
+      }
+    }
+
+    prevAcceptedKeyRef.current = acceptedIdsKey;
+    prevUndoDepthRef.current = undoDepth;
+  });
+
+  const handleInput = () => {
+    const div = divRef.current;
+    if (!div) return;
+    savedOffsetRef.current = getCursorCharOffset(div);
+    const text = readTextFromContainer(div);
+    dispatch({ type: "EDIT_CURRENT_TEXT", payload: text });
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData("text/plain");
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(document.createTextNode(text));
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    handleInput();
+  };
 
   return (
     <div className="flex flex-col rounded-lg border border-gray-200 overflow-hidden h-full">
@@ -57,7 +198,7 @@ export function ProposedPane() {
             onClick={() => dispatch({ type: "RESTORE_ORIGINAL" })}
             className="rounded px-2 py-1 text-xs font-medium bg-white border border-gray-300 hover:bg-gray-50"
           >
-            Restore original text (keeps proposal selections)
+            Clear all edits and selections
           </button>
         </div>
       </div>
@@ -69,36 +210,28 @@ export function ProposedPane() {
         </div>
       )}
 
-      {/* Diff preview — ~40% */}
-      <div className="shrink-0 basis-2/5 overflow-y-auto border-b border-gray-200 bg-white">
-        <div className="px-3 py-1 bg-gray-50 border-b border-gray-100">
-          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-            Changes preview
-          </span>
-        </div>
-        <div className="font-mono text-sm leading-relaxed p-3 space-y-px">
-          {diffLines.map((dl) => (
+      {/* Single contentEditable surface — React-owned children */}
+      <div
+        ref={divRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={handleInput}
+        onPaste={handlePaste}
+        className="flex-1 overflow-y-auto font-mono text-sm leading-relaxed p-3 space-y-px focus:outline-none focus:ring-1 focus:ring-blue-400"
+        spellCheck={false}
+      >
+        {diffLines.map((dl) => {
+          const isGhost = dl.highlight === "red-strike";
+          return (
             <div
               key={dl.key}
-              className={`px-1 rounded-sm whitespace-pre-wrap ${highlightClass[dl.highlight] ?? ""}`}
+              contentEditable={isGhost ? false : undefined}
+              className={`${HIGHLIGHT_CLASS[dl.highlight]} px-1 rounded-sm whitespace-pre-wrap`}
             >
               {dl.text || "\u00A0"}
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Editable textarea — ~60% */}
-      <div className="flex-1 flex flex-col min-h-0">
-        <textarea
-          ref={textareaRef}
-          value={state.currentText}
-          onChange={(e) =>
-            dispatch({ type: "EDIT_CURRENT_TEXT", payload: e.target.value })
-          }
-          className="flex-1 resize-none font-mono text-sm p-3 focus:outline-none focus:ring-1 focus:ring-blue-400"
-          spellCheck={false}
-        />
+          );
+        })}
       </div>
     </div>
   );
