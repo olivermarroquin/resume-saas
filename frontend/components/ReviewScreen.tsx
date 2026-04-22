@@ -9,7 +9,7 @@ export function ReviewScreen() {
   const { dispatch } = useAppState();
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="flex flex-col h-full bg-gray-50">
       {/* Action bar */}
       <div className="shrink-0 flex items-center justify-end px-4 py-2 border-b border-gray-200 bg-white">
         <button
