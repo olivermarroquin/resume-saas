@@ -57,6 +57,40 @@ Different from Design decisions above: Design decisions capture WHAT
 was chosen and why. Meta-lessons capture WHAT THE PROCESS MISSED and
 what should have been asked earlier.
 
+### 2026-04-22 — Rich-editing UI surfaces need a real editor framework; React + contentEditable is a structural dead end
+
+**What happened:** Stage 4a's review screen needed a single editing surface with per-line highlighting, inline diff visualization, and freeform text editing. The initial implementation used React to render line <div> children inside a parent with contentEditable=true. This seemed clean: React owns the DOM, contentEditable makes it editable, onInput syncs typing back to state.
+
+In practice, this approach failed across three successive fix attempts over ~3 hours of debugging:
+
+1. **Attempt 1 — Two-pane split (original Stage 4a):** Read-only diff preview stacked over an editable textarea. Worked, but UX was confusing (two stacked text surfaces), so was redesigned during live test.
+2. **Attempt 2 — Single contentEditable pane (Fix 1b):** React-owned children with character-offset cursor preservation. Worked for pure typing but broke catastrophically on Enter — Chrome inserted its own bare <div> nodes mid-paragraph, React reconciliation fought with browser-inserted nodes, content duplicated, cursor jumped, text corrupted.
+3. **Attempt 3 — contentEditable="plaintext-only" (Fix 6 Option C):** Constrained Chrome's Enter behavior to pure text insertion. Fixed the DOM corruption but introduced cursor positioning bugs, then Fix 6.1 fixed those by rewriting the cursor helper at the line-div level. But then backspace on empty lines revealed the same class of bug: Chrome's native delete modifies DOM; React reconciles; the two systems disagree about which node is which line.
+
+**The root pattern:** React and Chrome's contentEditable both want to own the DOM. React renders children from state; Chrome mutates the DOM on every keystroke, Enter, backspace, paste. When both are active on the same element, their respective "source of truth" diverges. Every fix is a patch to reconcile divergence after it happens — not a solution to the divergence itself.
+
+**What wasn't obvious at intake:** The frontend spec described "editable textarea with diff highlighting" as a single capability. In practice, "editable" and "per-line-styled" are two different technical problems. A plain textarea is editable but unstyleable. A styled div is styleable but not editable. contentEditable-on-a-styled-div appears to solve both but only works for simple cases — and the "simple cases" are narrower than a resume-editing workflow demands.
+
+**The lesson:**
+
+Any product requirement that mixes (a) user-editable text AND (b) per-character or per-line visual styling inside the same rendered surface requires a real editor framework — Slate, Lexical, TipTap, ProseMirror, or CodeMirror depending on use case. Rolling your own with contentEditable on a React-controlled DOM looks deceptively simple for simple demos but does not survive production use.
+
+**Stronger version of the lesson:** If the scoping conversation mentions "text editing with highlights" or "rich editor" or "inline annotations," the architectural answer is "pick an editor framework at intake" — not "we'll implement a simple version first." The "simple version" is a well-known trap: it works for a happy-path demo, then fails on the first real edit pattern a user tries.
+
+**What should change for future ventures:**
+
+- Add a question to `second-brain/05_reference/venture-intake-checklist.md`: "Does this product require user-editable text surfaces with per-character or per-line visual styling? If yes, pick an editor framework at spec-lock time, not during implementation."
+- When a frontend spec mentions editing + styling in the same surface, the spec-review should flag this as a "editor framework decision needed" item rather than leaving the implementation approach open.
+- For the app-build workflow when it gets automated: the workflow's spec-lock stage should include an "editor framework needed?" yes/no gate, with follow-up questions if yes.
+
+**Cost of this lesson on resume-saas:** ~3 hours of contentEditable debugging tonight after Stage 4a's initial UI came out broken on live test. Net direction is correct (Slate migration is the right fix), but the time would have been saved entirely by picking Slate at spec-lock time. The fact that the Frontend MVP Spec v1 was reviewed and accepted without this question is a gap the intake checklist now closes.
+
+**Related:**
+- Build-log design-decisions table row 2026-04-22: "Migrate ProposedPane from contentEditable to Slate.js"
+- Today's intake-gap meta-lesson (below this entry) is a similar pattern: a requirement that wasn't surfaced at intake costs hours mid-build. The editor framework gap is another instance of the same category.
+
+---
+
 ### 2026-04-22 — Live end-to-end testing is the primary bug-surfacing mechanism; unit tests mock the hard parts
 
 **What happened:** Stage 4a's Section 7 live test (operator manually exercised the review screen with a real resume + real job description) surfaced three distinct bug classes in ~15 minutes of clicking:
