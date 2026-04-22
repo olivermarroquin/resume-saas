@@ -53,6 +53,36 @@ Different from Design decisions above: Design decisions capture WHAT
 was chosen and why. Meta-lessons capture WHAT THE PROCESS MISSED and
 what should have been asked earlier.
 
+### 2026-04-22 — Live end-to-end testing is the primary bug-surfacing mechanism; unit tests mock the hard parts
+
+**What happened:** Stage 4a's Section 7 live test (operator manually exercised the review screen with a real resume + real job description) surfaced three distinct bug classes in ~15 minutes of clicking:
+
+1. **Architecture bug:** Two stacked text areas in the middle pane (the "Changes preview" div + the freeform textarea) produced a broken interaction where clicks on the preview put focus on the textarea below, causing reverse-typed characters. This was not caught by any test because no test renders the component and interacts with it.
+
+2. **Applied-logic bug:** `applyProposals` section-detection heuristic failed on a realistic resume. ADD_LINE proposals appended to the end of the document instead of inserting into the target section (resume uses "PROFESSIONAL EXPERIENCE:" — heuristic expected "EXPERIENCE"). REPLACE_LINE silently skipped because line-matching was whitespace-sensitive against bullet-formatted content. No unit test covers realistic resume content; the spec's own language called this "best-effort fallback" but in practice the fallback was the main path.
+
+3. **UX model bug:** Single-level undo was the correct spec behavior but confusing in actual use — users naturally expect "undo" to keep undoing. Option A's "keep selections, explicit label" compromise didn't survive real testing. The visual inconsistency was confusing even with a clarifying label.
+
+**Why it matters:** All three classes of bug are structurally invisible to unit tests as they're currently written. The backend's 40 unit tests mock the orchestrator (so Stage 3's nullable-narrative OpenAI schema bug didn't surface until live testing). The frontend has no tests yet, but when tests are added, they'll likely follow the same pattern — mocking the hard parts (real data, real interactions, real cursor/focus/scroll behavior).
+
+**The pattern, stated plainly:** unit tests mock the parts that fail. Live end-to-end testing with real data is the only mechanism that exercises the unmocked parts. For this venture and likely for most app builds, scheduling dedicated live-test time is not optional — it is the primary bug-surfacing step, and it should happen at every stage boundary where UX or applied-logic could be wrong.
+
+**What should change:**
+
+- Treat live end-to-end testing as a required stage-gate, not an optional last step. Every stage that produces user-facing behavior gets a live test before being marked complete.
+- Live tests should use REAL content (real resume, real JD, real user workflow), not minimal synthetic fixtures. The Stage 3 bug and the Stage 4a bugs both required realistic content to surface.
+- When writing future specs, flag "best-effort fallback" language as a testing obligation, not a scope reduction. If the fallback is going to be exercised in practice, it needs a real-data test.
+- When writing playbooks for app-build workflows, the test-strategy section must distinguish "unit-test-able" logic from "live-test-only" logic. Mixing the two produces false confidence.
+
+**Applicability beyond resume-saas:**
+
+This is not a resume-saas-specific observation. It applies to any venture with user-facing UI, applied heuristics, or external API dependencies. When the app-build workflow in ai-factory eventually gets formalized, "live end-to-end test with real data" should be a named step with the same weight as "unit tests pass."
+
+**Related:**
+- Stage 3 build-log entry (2026-04-21): proposal_schema.py nullable-narrative bug surfaced only in live test.
+- Stage 4a Section 7 test report (operator notes, 2026-04-22): the three bugs above.
+- Follow-on fix prompts (Stage 4a iteration): being produced in the strategic chat.
+
 ### 2026-04-22 — Intake gap surfaced mid-build: end-state product vision not captured at start
 
 **What happened:** During Stage 4 planning (PDF export library
