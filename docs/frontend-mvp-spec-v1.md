@@ -9,6 +9,17 @@ scaffold code is written until this spec is reviewed and accepted.
 
 ---
 
+## Revision History
+
+- **2026-04-22:** Post-live-test revision. Reverted to single middle
+  pane (contentEditable) with inline per-op highlighting; expanded
+  undo to multi-level; added Toggle All action; changed Restore
+  Original to clear both text and acceptedProposalIds. See
+  `repos/resume-saas/docs/build-log.md` Design Decisions table and
+  Meta-lessons section for rationale.
+
+---
+
 ## Scope
 
 This spec covers the MVP web UI that lets a user:
@@ -146,67 +157,117 @@ Three panes in a responsive layout (stacked on narrow viewports):
 
 1. **Left pane — Original resume.** Read-only. Displays `resume_text`
    as submitted.
-2. **Center pane — Proposed resume.** Editable textarea. By default shows
-   the original resume with all currently-accepted proposals applied.
-   Changes (additions, deletions, replacements) are visually highlighted
-   (see "Diff visualization" below).
+2. **Center pane — Proposed resume.** Single editable surface
+   implemented as a `<div contentEditable>`. Renders the resume with
+   all currently-accepted proposals applied AND per-op diff
+   highlighting inline. The same surface is used for freeform editing
+   — there is no separate read-only preview. Typing-level undo is
+   handled by the browser's native Ctrl+Z / Cmd+Z within this
+   element.
 3. **Right pane — Proposals list.** Scrollable panel showing every
-   proposal returned by the API as a card. Each card includes:
-   - Section badge (`SUMMARY`, `SKILLS`, or `EXPERIENCE`)
-   - Op badge (`REPLACE_LINE`, `ADD_LINE`, `DELETE_LINE`, `REPLACE_PHRASE`)
-   - Before text preview
-   - After text preview
-   - Rationale (full text)
-   - Accept/reject toggle (checkbox or switch)
+   proposal returned by the API as a card. Card structure is
+   unchanged from the prior design (section badge, op badge, before
+   text, after text, rationale, toggle). Above the list, a single
+   **"Accept all" / "Reject all"** button (three-state label based
+   on current acceptedProposalIds).
 
 Above the center pane: a narrative banner if the API returned a
-`narrative` string. Below the center pane: action buttons (Save as
-version, Undo, Restore original, Export dropdown).
+`narrative` string. Below the center pane: action buttons:
+
+- **Undo last toggle** — pops one entry off the undo stack; reverts
+  both text state and checkbox state. Disabled when undo stack is
+  empty.
+- **Clear all edits and selections** — resets center pane to original
+  resume text, clears acceptedProposalIds, clears the undo stack.
+  (Replaces the previous "Restore original text (keeps proposal
+  selections)" button.)
+- **Save as version** (Stage 4b)
+- **Export** dropdown (Stage 4b)
+- **Start over**
 
 ### Diff visualization
 
-Changes to the proposed resume (center pane) are visually highlighted
-relative to the original:
+Per-op highlighting is applied inline within the contentEditable
+middle pane. The pane's content is structured as a sequence of line
+elements (each a `<div>`), and highlighted line elements receive
+Tailwind background classes:
 
-- Added lines (from `ADD_LINE`): green background
-- Deleted lines (from `DELETE_LINE`): red background with strikethrough
-- Replaced lines/phrases (`REPLACE_LINE`, `REPLACE_PHRASE`): yellow
-  background on the replacement
+- ADD_LINE: added line gets `bg-green-100 text-green-900`
+- REPLACE_LINE: replacement line gets `bg-yellow-100 text-yellow-900`
+- REPLACE_PHRASE: the containing line gets `bg-yellow-100 text-yellow-900`
+- DELETE_LINE: a ghost row showing the deleted original line is
+  rendered at the deletion point with `bg-red-100 text-red-900 
+  line-through`. The ghost row is itself contentEditable:false so
+  the user can't accidentally type into it.
 
-The proposal cards in the right pane do not duplicate the diff UI. The
-list is the control surface; the diff is the display surface.
+Because contentEditable is used, the user can click anywhere in the
+rendered content and type to make freeform edits. Edits that modify
+highlighted regions cause those regions to be re-evaluated on the
+next re-render (the highlight may disappear if the edit breaks the
+proposal's `before` or `after` match).
 
-Inline proposal popovers (clicking a change in the center pane to see
-its rationale directly) are explicitly deferred to v1.1.
+Inline proposal popovers (clicking a change to see its rationale
+directly in the editor) remain deferred to v1.1. The right pane's
+proposal cards are the authoritative rationale surface.
 
 ### Proposal toggle behavior
 
 When the user toggles a proposal on or off:
 
-1. The center pane is regenerated from scratch as
-   `original resume text + all currently-accepted proposals applied`.
-2. **Any freeform edits the user had made in the center pane are
-   discarded.** This is the intentional tradeoff documented in the spec:
-   toggles are the primary interaction during the "decide what to
-   change" phase; freeform editing is for final polish.
-3. Before discarding, the current center-pane text is stashed as a
-   single-level undo state.
+1. The current `{ currentText, acceptedProposalIds }` pair is pushed
+   onto the undo stack.
+2. `acceptedProposalIds` is updated to reflect the toggle.
+3. `currentText` is regenerated from scratch as
+   `original resume text + all currently-accepted proposals applied`
+   via the `applyProposals` function.
+4. Any freeform edits the user had made in the center pane are
+   discarded. This is the intentional tradeoff: toggles are the
+   primary interaction during the "decide what to change" phase;
+   freeform editing is for final polish.
+5. The user's scroll position in the middle pane is preserved; the
+   cursor is reset to the start of the pane with focus preserved if
+   the pane was focused.
 
-### Undo
+Toggle All works the same way but pushes a single undo-stack entry
+representing the full change, not one entry per proposal toggled.
 
-A single "Undo" button restores the center pane to the state it was in
-immediately before the most recent proposal toggle. This is a
-single-level undo — the stashed state is cleared after one restore, and
-further undos are no-ops until a new toggle creates a new stash.
+### Undo (multi-level, toggles only)
 
-No multi-level history. No keyboard shortcut (`Cmd+Z`) in MVP. No redo.
+The undo stack is an unbounded stack of 
+`{ text: string, acceptedProposalIds: Set<number> }` snapshots. It is
+pushed on every TOGGLE_PROPOSAL and TOGGLE_ALL. It is cleared by
+RESTORE_ORIGINAL and START_OVER.
 
-### Restore original
+The "Undo last toggle" button pops the top entry and restores both
+`currentText` and `acceptedProposalIds` from that snapshot. The
+button is disabled when the stack is empty.
 
-A separate "Restore original" button resets the center pane to the raw
-original resume text only. It does not touch the proposals-accepted
-state. Rationale: users may want to reset edits without losing the work
-of deciding which proposals to accept.
+Freeform typing edits are NOT pushed onto the undo stack. They are
+handled by the browser's native undo (Ctrl+Z / Cmd+Z) within the
+contentEditable element. This is intentional: mixing toggle-level
+and character-level undo semantics produces confusing behavior.
+
+There is no redo. Multi-level undo covers the "I clicked too many
+toggles" case; if the user wants to re-accept a proposal, they click
+its toggle again (which pushes a new undo-stack entry).
+
+### Clear all edits and selections
+
+A "Clear all edits and selections" button resets review state to its
+post-API-response baseline:
+
+- `currentText` is reset to the raw original resume text
+- `acceptedProposalIds` is cleared to an empty Set
+- The undo stack is cleared
+- The proposals array and the original inputs are preserved
+
+Semantically: "I want to start the review over, but I don't want to
+re-submit to the API." This is a harder reset than Undo but softer
+than Start Over (which also re-requires the user to paste inputs and
+wait for the API round-trip).
+
+The button is always enabled; there is no "dirty" state check. If
+review state is already at the baseline, clicking is a no-op.
 
 ### Freeform editing
 
@@ -294,6 +355,11 @@ type Version = {
   createdAt: number; // Date.now()
 };
 
+type UndoEntry = {
+  text: string;
+  acceptedProposalIds: Set<number>;
+};
+
 type AppState = {
   phase: Phase;
 
@@ -308,7 +374,7 @@ type AppState = {
   // Review state
   acceptedProposalIds: Set<number>;  // which proposals are currently accepted
   currentText: string;               // center-pane text (freeform-editable)
-  undoStash: string | null;          // one-level undo of currentText before last toggle
+  undoStack: UndoEntry[];            // multi-level undo stack of toggle-level snapshots
   versions: Version[];               // saved snapshots (v1..vN)
 
   // UI
@@ -323,11 +389,11 @@ Reducer-style actions (exact names TBD during implementation):
 - `GENERATE_SUCCESS` (stores proposals, narrative; initializes `v1`,
   `currentText`, empty `acceptedProposalIds`; transitions to `review`)
 - `GENERATE_FAILURE` (stores error, transitions back to `input`)
-- `TOGGLE_PROPOSAL` (stashes `currentText` into `undoStash`, regenerates
-  `currentText` from original + accepted proposals)
-- `EDIT_CURRENT_TEXT` (sets `currentText`; does not clear `undoStash`)
-- `UNDO` (restores `currentText` from `undoStash`; clears `undoStash`)
-- `RESTORE_ORIGINAL` (sets `currentText` to original `resumeText`)
+- `TOGGLE_PROPOSAL` (pushes current `{ text, acceptedProposalIds }` onto undoStack; updates acceptedProposalIds; regenerates currentText from original + accepted proposals)
+- `TOGGLE_ALL` (pushes current `{ text, acceptedProposalIds }` onto undoStack; toggles acceptedProposalIds to all-on if any are off, all-off otherwise; regenerates currentText)
+- `EDIT_CURRENT_TEXT` (sets `currentText`; does NOT push to undoStack — typing-level undo is handled by browser-native Ctrl+Z in the contentEditable element)
+- `UNDO` (pops the top entry from undoStack; restores both currentText and acceptedProposalIds from the snapshot; no-op if stack is empty)
+- `RESTORE_ORIGINAL` (sets `currentText` to original `resumeText`; clears acceptedProposalIds; clears undoStack; button labeled "Clear all edits and selections" in the UI)
 - `SAVE_VERSION` (appends snapshot to `versions`)
 - `LOAD_VERSION` (sets `currentText` to the chosen version's text)
 - `START_OVER` (resets state; transitions to `input`)
@@ -363,9 +429,28 @@ Algorithm:
 4. Re-join lines with `\n` and return.
 
 This algorithm is deliberately simple. Edge cases (overlapping
-proposals, section detection failures, multiple matches) are handled by
-best-effort fallbacks rather than explicit resolution logic. This is
-acceptable for MVP because:
+proposals, section detection failures, multiple matches) are handled
+by best-effort fallbacks rather than explicit resolution logic.
+
+**Known limitations surfaced during Stage 4a live testing (2026-04-22):**
+
+- Section detection for ADD_LINE currently fails on resumes that use
+  qualified section headers (e.g., "PROFESSIONAL EXPERIENCE:" rather
+  than "EXPERIENCE"). The fallback is "append to end of document,"
+  which is visually wrong. Fix in progress — will use case-insensitive
+  substring matching against known section keywords (SUMMARY,
+  SKILLS, EXPERIENCE).
+- REPLACE_LINE matching is whitespace-sensitive against bullet-
+  formatted content (e.g., "• Led team of 5" in the original vs.
+  "Led team of 5" in the proposal's `before[0]`). Matches fail
+  silently. Fix in progress — will strip leading bullet glyphs and
+  normalize whitespace before comparison.
+
+These limitations are being addressed in the Stage 4a iteration
+following the live test. Post-fix, the "best-effort fallback"
+framing applies to true edge cases, not to main-path behavior.
+
+This approach remains acceptable for MVP because:
 
 - Proposals from the orchestrator are generated against the current
   resume text, so `before` references should be valid.
@@ -390,8 +475,8 @@ frontend/
 │   ├── ProcessingScreen.tsx # Screen 2
 │   ├── ReviewScreen.tsx    # Screen 3 (composes panes below)
 │   ├── OriginalPane.tsx    # Read-only original resume display
-│   ├── ProposedPane.tsx    # Editable center pane with diff highlighting
-│   ├── ProposalsList.tsx   # Right-pane list of proposal cards
+│   ├── ProposedPane.tsx    # Single contentEditable center pane with inline per-op diff highlighting
+│   ├── ProposalsList.tsx   # Right-pane list of proposal cards; includes "Accept all" / "Reject all" button
 │   ├── ProposalCard.tsx    # Individual proposal with toggle
 │   ├── VersionSidebar.tsx  # Saved versions UI
 │   ├── ExportMenu.tsx      # PDF/DOCX/Clipboard dropdown
@@ -450,7 +535,7 @@ ever lost due to an error.
 - URL scraping of job postings
 - Server-side PDF/DOCX export
 - Inline proposal popovers in the diff view (deferred to v1.1)
-- Multi-level undo / redo
+- Redo (multi-level undo is implemented; redo is not)
 - Keyboard shortcuts
 - Real-time collaboration
 - Analytics / telemetry
