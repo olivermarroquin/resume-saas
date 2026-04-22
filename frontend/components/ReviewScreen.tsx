@@ -22,15 +22,15 @@ export function ReviewScreen() {
       </div>
 
       {/* Three-pane layout */}
-      <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3 p-3 min-h-0 overflow-hidden">
+      <div className="flex-1 grid grid-rows-1 grid-cols-1 md:grid-cols-3 gap-3 p-3 min-h-0 overflow-hidden">
         {/* Mobile order: ProposedPane first, then OriginalPane, then ProposalsList */}
-        <div className="order-2 md:order-1 h-[70vh] md:h-full">
+        <div className="order-2 md:order-1 h-[70vh] md:h-full overflow-hidden min-h-0">
           <OriginalPane />
         </div>
-        <div className="order-1 md:order-2 h-[70vh] md:h-full">
+        <div className="order-1 md:order-2 h-[70vh] md:h-full overflow-hidden min-h-0">
           <ProposedPane />
         </div>
-        <div className="order-3 md:order-3 h-[70vh] md:h-full">
+        <div className="order-3 md:order-3 h-[70vh] md:h-full overflow-hidden min-h-0">
           <ProposalsList />
         </div>
       </div>
