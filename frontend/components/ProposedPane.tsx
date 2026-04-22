@@ -168,21 +168,6 @@ export function ProposedPane() {
     dispatch({ type: "EDIT_CURRENT_TEXT", payload: text });
   };
 
-  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const text = e.clipboardData.getData("text/plain");
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0) {
-      const range = sel.getRangeAt(0);
-      range.deleteContents();
-      range.insertNode(document.createTextNode(text));
-      range.collapse(false);
-      sel.removeAllRanges();
-      sel.addRange(range);
-    }
-    handleInput();
-  };
-
   return (
     <div className="flex flex-col rounded-lg border border-gray-200 overflow-hidden h-full">
       {/* Header */}
@@ -219,10 +204,9 @@ export function ProposedPane() {
       {/* Single contentEditable surface — React-owned children */}
       <div
         ref={divRef}
-        contentEditable
+        contentEditable={"plaintext-only" as unknown as boolean}
         suppressContentEditableWarning
         onInput={handleInput}
-        onPaste={handlePaste}
         className="flex-1 overflow-y-auto font-mono text-sm leading-relaxed p-3 space-y-px focus:outline-none focus:ring-1 focus:ring-blue-400"
         spellCheck={false}
       >
