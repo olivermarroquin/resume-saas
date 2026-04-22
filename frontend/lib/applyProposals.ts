@@ -114,22 +114,118 @@ export function applyProposals(
   let text = originalText;
 
   for (const p of acceptedProposals) {
+    // Backend may emit multi-line before[0] values for line-oriented
+    // ops. If detected, attempt best-effort handling: split on \n and
+    // match the full block against a contiguous sequence of resume
+    // lines. Only attempted for REPLACE_LINE and DELETE_LINE —
+    // REPLACE_PHRASE is substring-based and tolerates embedded \n
+    // naturally via String.prototype.includes.
+    if (
+      (p.op === "REPLACE_LINE" || p.op === "DELETE_LINE") &&
+      p.before[0] != null &&
+      p.before[0].includes("\n")
+    ) {
+      const blockLines = p.before[0].split("\n");
+      const blockLen = blockLines.length;
+      const normBlock = blockLines.map(normalizeLineForMatch);
+
+      // Slide a window of size blockLen across lines and look for a
+      // contiguous match.
+      let matchStart = -1;
+      for (let i = 0; i <= lines.length - blockLen; i++) {
+        let allMatch = true;
+        for (let j = 0; j < blockLen; j++) {
+          if (normalizeLineForMatch(lines[i + j]) !== normBlock[j]) {
+            allMatch = false;
+            break;
+          }
+        }
+        if (allMatch) {
+          matchStart = i;
+          break;
+        }
+      }
+
+      if (matchStart !== -1) {
+        if (p.op === "REPLACE_LINE") {
+          const replacement = p.after[0] ?? "";
+          const replacementLines = replacement.split("\n");
+          lines.splice(matchStart, blockLen, ...replacementLines);
+          text = lines.join("\n");
+          console.info(
+            `[applyProposals] Proposal ${p.id} (REPLACE_LINE) matched ` +
+              `a multi-line block of ${blockLen} lines at index ${matchStart}.`,
+          );
+        } else {
+          lines.splice(matchStart, blockLen);
+          text = lines.join("\n");
+          console.info(
+            `[applyProposals] Proposal ${p.id} (DELETE_LINE) removed a ` +
+              `multi-line block of ${blockLen} lines at index ${matchStart}.`,
+          );
+        }
+        continue;
+      } else {
+        warn(
+          p,
+          `${p.op} with multi-line before[0] could not be matched as ` +
+            `a contiguous block in the resume.`,
+        );
+        continue;
+      }
+    }
+
     switch (p.op) {
       case "REPLACE_LINE": {
-        const target = p.before[0]?.trim();
-        const replacement = p.after[0] ?? "";
-        if (!target) {
-          warn(p, "REPLACE_LINE with empty before[0]");
+        const target = p.before[0];
+        const replacement = p.after[0];
+        if (target == null || replacement == null) {
+          warn(p, "REPLACE_LINE with missing before[0] or after[0]");
           continue;
         }
+
+        // Primary path: whole-line match after normalization.
         const normTarget = normalizeLineForMatch(target);
-        const idx = lines.findIndex((ln) => normalizeLineForMatch(ln) === normTarget);
-        if (idx === -1) {
-          warn(p, `REPLACE_LINE: line not found: "${target}"`);
-          continue;
+        const idx = lines.findIndex(
+          (ln) => normalizeLineForMatch(ln) === normTarget,
+        );
+
+        if (idx !== -1) {
+          lines[idx] = replacement;
+          text = lines.join("\n");
+          break;
         }
-        lines[idx] = replacement;
-        text = lines.join("\n");
+
+        // Fallback path: auto-convert to phrase replacement if
+        // before[0] is a unique, sufficiently-long substring of exactly
+        // one resume line.
+        const MIN_SUBSTRING_RATIO = 0.3;
+        const containingLineIndices = lines
+          .map((ln, i) => ({ ln, i }))
+          .filter(({ ln }) => ln.includes(target))
+          .map(({ i }) => i);
+
+        if (containingLineIndices.length === 1) {
+          const lineIdx = containingLineIndices[0];
+          const line = lines[lineIdx];
+          if (target.length / line.length >= MIN_SUBSTRING_RATIO) {
+            lines[lineIdx] = line.replace(target, replacement);
+            text = lines.join("\n");
+            console.info(
+              `[applyProposals] Proposal ${p.id} (REPLACE_LINE) ` +
+                `auto-converted to phrase replacement: before[0] was a ` +
+                `substring of one line, not a whole line.`,
+            );
+            break;
+          }
+        }
+
+        // Neither whole-line nor safe-substring matched.
+        warn(
+          p,
+          `REPLACE_LINE with no matching line and no safe substring ` +
+            `fallback. before[0]="${target.slice(0, 80)}..."`,
+        );
         break;
       }
 
