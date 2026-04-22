@@ -37,6 +37,83 @@ after MVP ships.
 
 ---
 
+## Meta-lessons (for future playbook)
+
+Running log of lessons about HOW ventures are run — intake gaps,
+workflow discoveries, process improvements — as opposed to what was
+built. These are extracted into venture-level playbooks and the
+intake checklist at
+`second-brain/05_reference/venture-intake-checklist.md`.
+
+Different from Design decisions above: Design decisions capture WHAT
+was chosen and why. Meta-lessons capture WHAT THE PROCESS MISSED and
+what should have been asked earlier.
+
+### 2026-04-22 — Intake gap surfaced mid-build: end-state product vision not captured at start
+
+**What happened:** During Stage 4 planning (PDF export library
+choice), a question about export quality prompted the operator to
+clarify the product's actual end-state vision: resume-saas is meant
+to be a format-preserving resume editor. Users upload a resume in
+their own format, the system applies proposals, and the output
+preserves the user's original formatting. The MVP currently being
+built cannot do this — plain-text paste input discards all
+formatting at the input stage. This was a significant mismatch
+between what was being built and what the product is ultimately
+meant to be.
+
+**Why it matters:** The MVP is not wrong, but without explicit
+framing it could have shipped with an unspoken gap between user
+expectation and product capability. Caught in time to reframe as
+Path C — MVP ships as a proposal-review tool, format preservation
+becomes an explicit v2 roadmap item — but the close-call is the
+lesson, not the resolution.
+
+**What wasn't asked at intake:**
+- What is the end-state product vision, beyond MVP scope?
+- What file formats will users realistically input? What formats
+  will they want out?
+- Is format fidelity a core value proposition, or incidental?
+- What does the user's end-to-end workflow actually look like, not
+  just the app's happy path?
+
+**Why it wasn't asked:** The strategic files at intake captured
+"what to build" (a resume tailoring web app) and "MVP scope"
+(proposal generation + review + export). They did not capture the
+*product's distinctive value proposition* — the thing that
+differentiates it from a ChatGPT prompt. That's where
+format-preservation lives. Without it in the intake, every downstream
+decision (paste-text inputs, plain-text export, simple PDF template)
+was locally correct but collectively built away from the end-state.
+
+**What should change:**
+- Intake checklist must include end-state product vision as a
+  first-class question, not just MVP scope.
+- The intake checklist itself is being created at
+  `second-brain/05_reference/venture-intake-checklist.md` as part
+  of this capture. Future ventures read from it at kickoff.
+- A mini-retro capturing the full arc of this discovery is being
+  written at `second-brain/06_retros/2026-04-22_resume-saas-intake-gap-mid-build.md`.
+
+**Additional observation (worth noting for future automation):**
+The fact that this gap surfaced as a question — "will export
+quality matter?" — and not as a silent miss is because the
+strategic chat has a loose discipline of asking "does this tool
+scale to end-state?" at library-choice time. That discipline saved
+this one. Without it, jspdf would have been picked, the MVP would
+have shipped, and the mismatch wouldn't have surfaced until a real
+user tried to export.
+
+A secondary observation: this capture itself — the intake
+checklist, mini-retro, meta-lessons section — is all produced by
+the two-surface strategic/execution workflow already in place. The
+workflow surfaced its own gap AND produced the artifacts to prevent
+recurrence. That's the system working as designed, and worth
+preserving as a pattern when the workflow gets abstracted into a
+playbook for future ventures.
+
+---
+
 ## Session entries
 
 <!-- New entries appended above this line -->
