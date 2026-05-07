@@ -47,13 +47,37 @@ resume-saas/
 │   ├── lib/              # API client, utilities
 │   └── public/           # Static assets
 ├── docs/
-│   └── frontend-mvp-spec-v1.md       # Frontend architecture
+│   ├── frontend-mvp-spec-v1.md       # Frontend architecture
+│   └── build-log.md                  # Frozen historical artifact (see Knowledge Artifacts)
+├── .kos/                 # Operator-facing knowledge — symlinked into second-brain/04_projects/personal/resume-saas/
+│   ├── README.md         #   project status, current phase, shared-intelligence links
+│   ├── .vault-config.md  #   agent-context boundary
+│   ├── specs/            #   spec-* notes
+│   ├── scopes/           #   scope-* notes
+│   ├── execution-logs/   #   per-session build logs
+│   └── lessons/          #   promotion candidates
 ├── CLAUDE.md             # This file
 └── docker-compose.yml    # Local dev setup
 ```
 
 Note: `rewrite-api-spec-v1.md` is NOT in this directory — the
 authoritative spec lives at `ai-factory/docs/rewrite-api-spec-v1.md`.
+
+---
+
+## Knowledge Artifacts
+
+Project knowledge lives in `<repo>/.kos/`, symlinked into `second-brain/04_projects/personal/resume-saas/`. The vault and the repo see the same content; edit either side.
+
+- `.kos/README.md` — canonical project-status doc (purpose, current phase, links to shared-intelligence used, lessons promoted)
+- `.kos/.vault-config.md` — agent-context boundary defining scope for AI agents reading this vault
+- `.kos/specs/` — specifications (`spec-*.md`); two pre-existing specs migrated here on 2026-05-06 (`spec-resume-saas-overview.md`, `spec-resume-factory-source-analysis.md`)
+- `.kos/scopes/` — implementation-scope notes (`scope-*.md`) for current work boundaries
+- `.kos/execution-logs/` — per-session build logs (`execution-log-YYYY-MM-DD-<topic>.md`); new build-log entries go here
+- `.kos/lessons/` — extracted learnings (`lesson-*.md`); promotion candidates for `second-brain/05_shared-intelligence/lessons/`
+- `docs/build-log.md` — **frozen historical artifact** (entries 2026-04-21 to 2026-04-23). Do not append; use `.kos/execution-logs/` instead.
+
+Promotion of project lessons follows `second-brain/05_shared-intelligence/workflows/workflow-knowledge-promotion.md`.
 
 ---
 
