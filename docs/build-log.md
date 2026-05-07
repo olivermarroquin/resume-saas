@@ -1,24 +1,27 @@
 # resume-saas Build Log
 
-Append-only log of build work. Most recent entry at the top.
-
-Used for two purposes:
-
-1. **Session handoff.** Each entry captures what happened so the next 
-   session (or the next operator) can pick up without losing context.
-2. **Raw material for future playbooks.** Entries in the "Design decisions" 
-   section below accumulate into 
-   `second-brain/03_playbooks/frontend-mvp-design-decisions.md` after 
-   resume-saas ships.
+> **Historical artifact (frozen 2026-05-06).** This file is no longer the
+> canonical location for build-log entries. New entries go to
+> `.kos/execution-logs/execution-log-<YYYY-MM-DD>-<topic>.md` (one note per
+> dated session) per the Knowledge OS conventions in
+> `<workspace>/CLAUDE.md` and `<workspace>/second-brain/_meta/conventions.md`.
+>
+> The entries below — spanning 2026-04-21 through 2026-04-23 — remain as
+> historical record of the early frontend MVP build. After resume-saas MVP
+> ships, the **Design decisions** table will be harvested into
+> `second-brain/05_shared-intelligence/patterns/` (cross-cutting decisions)
+> and the **Meta-lessons** section into
+> `second-brain/05_shared-intelligence/lessons/`. Until then, do not append
+> new entries to this file.
 
 ---
 
-## Design decisions (for future playbook)
+## Design decisions (for future promotion)
 
 Running log of cross-cutting architecture and UX decisions made during 
 this build. Each entry: the decision, alternatives considered, and why we 
-chose what we chose. These will be extracted into a reusable playbook 
-after MVP ships.
+chose what we chose. These will be extracted into 
+`second-brain/05_shared-intelligence/patterns/` after MVP ships.
 
 | Date | Decision | Alternatives considered | Rationale |
 |---|---|---|---|
@@ -46,7 +49,7 @@ after MVP ships.
 
 ---
 
-## Meta-lessons (for future playbook)
+## Meta-lessons (for future promotion)
 
 Running log of lessons about HOW ventures are run — intake gaps,
 workflow discoveries, process improvements — as opposed to what was
