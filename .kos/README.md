@@ -1,41 +1,46 @@
 ---
 type: project-readme
 project-name: resume-saas
-status: active
+status: parked
 created: 2026-05-06
-updated: 2026-05-27
+updated: 2026-07-05
 client: false
 sensitivity: standard
 archetypes: [product-business, saas-product, b2c-saas]
 applicability-confidence: medium
-tags: [project, vault-root]
+tags: [project, vault-root, parked]
 ---
 
 # Project: resume-saas
 
 ## Purpose
-What this project produces and for whom.
+First portfolio product: a web app that converts the legacy resume-factory CLI into a user-facing SaaS. A user pastes a resume + job description and gets edit proposals applied client-side, then a downloadable tailored resume. Flask API backend (40 tests passing) + Next.js App Router frontend.
 
 ## Status
-Current phase. What's blocked, what's next.
+**PARKED since April 2026** — client SEO/traffic work (ev-electric, s-and-h) took priority. Backend complete for MVP; frontend Stages 1–3.5 complete (scaffold, state layer, API wiring, verified end-to-end round trip); Stage 4a partial — blocked on the ProposedPane Slate.js migration (contentEditable approach was a dead end).
+
+**Resume-point (in order):**
+1. `docs/stage-4a-slate-migration-plan.md` — the blocking task, plan ready (~2-4h)
+2. `.kos/specs/archived-2026-04-mvp-current-focus-plan.md` — full parked plan (Stage 4b, week map, knowledge-capture expectations), archived from `02_current-focus.md` 2026-07-05 during the Session End Protocol v2 build
+3. Stage 4b (versioning + export) → deploy (Vercel + Railway)
 
 ## Sensitivity tier
-- [ ] Standard (Tier 1) — lives in second-brain via symlink
+- [x] Standard (Tier 1) — lives in second-brain via symlink
 - [ ] NDA / confidential (Tier 2) — `_private/`, excluded from search and sync
 - [ ] Sensitive / regulated (Tier 3) — separate air-gapped vault
 
 ## Vault contents
-- `specs/` — what we're building
+- `specs/` — what we're building (incl. the archived April 2026 MVP focus plan)
 - `scopes/` — implementation boundaries
 - `execution-logs/` — what actually happened
 - `lessons/` — extracted learnings (promote to shared-intelligence)
 - `.vault-config.md` — agent-facing context boundary
 
 ## What an agent reading this vault needs to know
-- Project goal: 
-- Current milestone: 
-- Active constraints: 
-- Out of scope: 
+- Project goal: ship the resume-saas MVP (input → proposals → apply → export)
+- Current milestone: Stage 4a completion, blocked on Slate migration — PARKED, do not resume without operator direction
+- Active constraints: no auth/billing/multi-user until post-MVP; don't route through the migration pipeline; don't overwrite the 40 backend tests; repo conventions in `repos/resume-saas/CLAUDE.md`
+- Out of scope: performance optimization, second products, anything in the archived plan's "DO NOT Work On" list (historical — see archive header note)
 
 ## Promotion log
 - 2026-05-06 — project initialized

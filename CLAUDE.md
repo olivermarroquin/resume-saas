@@ -10,13 +10,15 @@ For session lifecycle (start/end protocol, context files), see `workspace/CLAUDE
 
 resume-saas is the first portfolio product — a web app that converts the legacy resume-factory CLI tool into a user-facing SaaS.
 
-**Current state (as of 2026-04-20):**
+**Current state (as of 2026-07-05): PARKED** — client SEO/traffic work took priority mid-2026. Resume-point below.
 
 - Backend: Flask API with blueprints (exists, 40 tests passing)
-- Frontend: does not exist yet (being built this week)
+- Frontend: Next.js scaffold EXISTS — Stages 1–3.5 complete (scaffold, state layer, API wiring, end-to-end round trip verified); Stage 4a partial (review UI built, but the ProposedPane contentEditable approach hit a dead end — Slate.js migration pending, plan at `docs/stage-4a-slate-migration-plan.md`)
 - Deployment: not yet deployed
 
 **MVP goal:** A user inputs job details through a web UI and gets a downloadable tailored resume.
+
+**Resume-point:** the full parked plan (Stage 4a/4b tasks, week map, knowledge-capture expectations) is archived at `.kos/specs/archived-2026-04-mvp-current-focus-plan.md`. Read it + the Slate migration plan before restarting work.
 
 ---
 
@@ -174,15 +176,11 @@ docker-compose). In production, frontend on Vercel calls backend on Railway
 
 ## Current Focus
 
-See `ai-factory/system-state/strategic/02_current-focus.md` for the live list of what's in progress.
+**Project is PARKED (since April 2026).** Canonical project status: `.kos/README.md`. Full resume-point plan: `.kos/specs/archived-2026-04-mvp-current-focus-plan.md`.
 
-As of start, Week 1 tasks:
+Note: `ai-factory/system-state/strategic/02_current-focus.md` is a slim sprint-level card as of 2026-07-05 (Session End Protocol v2) — it no longer carries resume-saas task detail. Do not append resume-saas items there; project state lives in `.kos/`.
 
-- Create `docs/frontend-mvp-spec-v1.md`
-- Scaffold `frontend/` with Next.js 14 (App Router, TypeScript, Tailwind)
-  per the spec
-- Wire frontend to backend `POST /api/rewrite` and verify end-to-end
-- Create `docker-compose.yml` for local dev
+First tasks on restart: Stage 4a Slate migration (`docs/stage-4a-slate-migration-plan.md`), then `docker-compose.yml` for local dev.
 
 ---
 
